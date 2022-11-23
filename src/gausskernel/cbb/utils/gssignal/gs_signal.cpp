@@ -955,6 +955,7 @@ static void gs_res_signal_handler(int signo, siginfo_t* siginfo, void* context)
 void gs_signal_startup_siginfo(char* thread_name)
 {
     pqinitmask();
+    // 设置slot有什么用？
     (void)gs_signal_alloc_slot_for_new_thread(thread_name, gs_thread_self());
 }
 

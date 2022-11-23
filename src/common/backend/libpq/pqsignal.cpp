@@ -120,6 +120,7 @@ void pqinitmask(void)
 #else
     /* Set the signals we want. */
     t_thrd.libpq_cxt.UnBlockSig = 0;
+    // block这些signals 是什么意思？为什么需要在线程里设置block signal?
     t_thrd.libpq_cxt.BlockSig = sigmask(SIGQUIT) | sigmask(SIGTERM) | sigmask(SIGALRM) |
                                 /* common signals between two */
                                 sigmask(SIGHUP) | sigmask(SIGINT) | sigmask(SIGUSR1) | sigmask(SIGUSR2) |

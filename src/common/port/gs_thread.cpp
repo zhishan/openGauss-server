@@ -425,7 +425,7 @@ ThreadId gs_thread_self(void)
  * @@GaussDB@@
  * Brief		: thread exit handle function.
  * Description	: the resource should be released before the thread exit.
- * Notes		:
+ * Notes		: 清理线程资源
  */
 void gs_thread_exit(int code)
 {
@@ -541,11 +541,11 @@ void gs_thread_args_pool_init(unsigned long pool_size, unsigned long backend_par
     backend_para_base = (char*)((char*)(thread_args_pool.thr_args) + pool_size * sizeof(ThreadArg));
 
     for (loop = 0; loop < pool_size - 1; loop++) {
-        thread_args_pool.thr_args[loop].next = &(thread_args_pool.thr_args[loop + 1]);
+        thread_args_pool.thr_args[loop].next = &(thread_args_pool.thr_args[loop + 1]); // 组成链表
         thread_args_pool.thr_args[loop].m_taskRoutine = NULL;
     }
 
-    thread_args_pool.thr_args[pool_size - 1].next = NULL;
+    thread_args_pool.thr_args[pool_size - 1].next = NULL; // 把最后一个
     thread_args_pool.thr_args[pool_size - 1].m_taskRoutine = NULL;
 
     for (loop = 0; loop < pool_size; loop++) {
@@ -553,7 +553,7 @@ void gs_thread_args_pool_init(unsigned long pool_size, unsigned long backend_par
     }
 
     thread_args_pool.save_backend_para_size = backend_para_size;
-    SpinLockInit(&(thread_args_pool.thr_lock));
+    SpinLockInit(&(thread_args_pool.thr_lock)); // 这个是spin lock init?
 
     return;
 }
@@ -806,6 +806,7 @@ int gs_thread_create(gs_thread_t* th, void* (*taskRoutine)(void*), int argc, voi
         error_code = pthread_attr_setdetachstate(&pThreadAttr, PTHREAD_CREATE_JOINABLE);
         /* Create a pthread */
         if (error_code == 0) {
+            // 创建线程
             error_code = pthread_create(&th->thid, &pThreadAttr, ThreadStarterFunc, pArg);
         }
 

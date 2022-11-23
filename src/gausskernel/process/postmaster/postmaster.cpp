@@ -1139,7 +1139,7 @@ void initKnlRTOContext(void)
 }
 
 /*
- * Postmaster main entry point
+ * Postmaster main entry point 主流代码
  */
 int PostmasterMain(int argc, char* argv[])
 {
@@ -1153,7 +1153,7 @@ int PostmasterMain(int argc, char* argv[])
     OptParseContext optCtxt;
     errno_t rc = 0;
     Port port;
-
+    // 获取 当前线程的thread id
     t_thrd.proc_cxt.MyProcPid = PostmasterPid = gs_thread_self();
 
     t_thrd.proc_cxt.MyStartTime = time(NULL);
@@ -1165,7 +1165,7 @@ int PostmasterMain(int argc, char* argv[])
     /*
      * for security, no dir or file created can be group or other accessible
      */
-    umask(S_IRWXG | S_IRWXO);
+    umask(S_IRWXG | S_IRWXO); // 这个有什么具体的作用吗？
 
     /*
      * Fire up essential subsystems: memory management
@@ -1182,7 +1182,7 @@ int PostmasterMain(int argc, char* argv[])
         ALLOCSET_DEFAULT_MINSIZE,
         ALLOCSET_DEFAULT_INITSIZE,
         ALLOCSET_DEFAULT_MAXSIZE);
-    MemoryContextSwitchTo(t_thrd.mem_cxt.postmaster_mem_cxt);
+    MemoryContextSwitchTo(t_thrd.mem_cxt.postmaster_mem_cxt); // 什么是context
 
     /**
      * initialize version info.
@@ -1194,7 +1194,7 @@ int PostmasterMain(int argc, char* argv[])
      * @OBS
      * Create a global OBS CA object shared among threads
      */
-    initOBSCacheObject();
+    initOBSCacheObject(); // including Credential
 
     S3_init();
 #endif
@@ -1214,10 +1214,10 @@ int PostmasterMain(int argc, char* argv[])
 #endif
 
     /* Initialize paths to installation files */
-    getInstallationPaths(argv[0]);
+    getInstallationPaths(argv[0]); // 创建必要的安装目录
 
     /*
-     * Options setup
+     * Options setup GUC参数
      */
     InitializeGUCOptions();
 
@@ -1502,7 +1502,7 @@ int PostmasterMain(int argc, char* argv[])
         useLocalXid = true;
     } else if (g_instance.role != VSINGLENODE) {
         write_stderr("Single node mode: must start as single node.\n");
-        ExitPostmaster(1);
+        ExitPostmaster(1); // 退出主线程
     }
 #else
 
@@ -1561,7 +1561,7 @@ int PostmasterMain(int argc, char* argv[])
      * for example single_node mode,
      * so need this function to init postmaster level guc.
      */
-    InitializePostmasterGUC();
+    InitializePostmasterGUC(); // 初始化postmaster 模块配置参数
 
     t_thrd.myLogicTid = noProcLogicTid + POSTMASTER_LID;
     if (output_config_variable != NULL) {
@@ -1605,13 +1605,14 @@ int PostmasterMain(int argc, char* argv[])
         } else {
             ExitPostmaster(1);
         }
+        // 创建线程池, 个数： all_procs + extern_slots_num
         /* init thread args pool for ever sub threads except signal moniter */
         gs_thread_args_pool_init(GLOBAL_ALL_PROCS + EXTERN_SLOTS_NUM, sizeof(BackendParameters));
         /* Init signal manage struct */
-        gs_signal_slots_init(GLOBAL_ALL_PROCS + EXTERN_SLOTS_NUM);
+        gs_signal_slots_init(GLOBAL_ALL_PROCS + EXTERN_SLOTS_NUM); // slots是什么？
         gs_signal_startup_siginfo("PostmasterMain");
 
-        gs_signal_monitor_startup();
+        gs_signal_monitor_startup(); // 创建监控线程
         g_instance.attr.attr_common.Logging_collector = true;
         g_instance.global_sysdbcache.Init(INSTANCE_GET_MEM_CXT_GROUP(MEMORY_CONTEXT_DEFAULT));
         CreateLocalSysDBCache();
@@ -1635,7 +1636,7 @@ int PostmasterMain(int argc, char* argv[])
 
     /* Set parallel recovery config */
     ConfigRecoveryParallelism();
-    ProcessRedoCpuBindInfo();
+    ProcessRedoCpuBindInfo(); // 绑定 cpu core
     /*
         * Other one-time internal sanity checks can go here, if they are fast.
         * (Put any slow processing further down, after postmaster.pid creation.)
@@ -1736,7 +1737,7 @@ int PostmasterMain(int argc, char* argv[])
     CreateDataDirLockFile(true);
 
     /* Module load callback */
-    pgaudit_agent_init();
+    pgaudit_agent_init(); // 初始化审计模块
     auto_explain_init();
     ledger_hook_init();
 
@@ -1749,7 +1750,7 @@ int PostmasterMain(int argc, char* argv[])
     * Establish input sockets.
     */
     for (i = 0; i < MAXLISTEN; i++)
-        g_instance.listen_cxt.ListenSocket[i] = PGINVALID_SOCKET;
+        g_instance.listen_cxt.ListenSocket[i] = PGINVALID_SOCKET; // 建立输入 socket 监听
 
     if (g_instance.attr.attr_network.ListenAddresses && !dummyStandbyMode) {
         char* rawstring = NULL;
@@ -2009,9 +2010,10 @@ int PostmasterMain(int argc, char* argv[])
     if (g_instance.attr.attr_common.enable_thread_pool) {
         /* No need to start thread pool for dummy standby node. */
         if (!dummyStandbyMode) {
+        // 创建ThreadPool
             g_threadPoolControler = (ThreadPoolControler*)
                 New(INSTANCE_GET_MEM_CXT_GROUP(MEMORY_CONTEXT_EXECUTOR)) ThreadPoolControler();
-            g_threadPoolControler->SetThreadPoolInfo();
+            g_threadPoolControler->SetThreadPoolInfo(); // 初始化线程
         } else {
             g_instance.attr.attr_common.enable_thread_pool = false;
             g_threadPoolControler = NULL;
@@ -2030,7 +2032,7 @@ int PostmasterMain(int argc, char* argv[])
     /*
         * Set up shared memory and semaphores.
         */
-    reset_shared(g_instance.attr.attr_network.PostPortNumber);
+    reset_shared(g_instance.attr.attr_network.PostPortNumber); // 建立共享内存和信号池
 
     /* Alloc array for backend record. */
     BackendArrayAllocation();
@@ -2039,7 +2041,7 @@ int PostmasterMain(int argc, char* argv[])
     gs_thread_args_pool_init(GLOBAL_ALL_PROCS + EXTERN_SLOTS_NUM, sizeof(BackendParameters));
     // 1.init signal manage struct
     //
-    gs_signal_slots_init(GLOBAL_ALL_PROCS + EXTERN_SLOTS_NUM);
+    gs_signal_slots_init(GLOBAL_ALL_PROCS + EXTERN_SLOTS_NUM); // 初始化 postmaster 信号管理
     gs_signal_startup_siginfo("PostmasterMain");
 
     gs_signal_monitor_startup();
@@ -2068,7 +2070,7 @@ int PostmasterMain(int argc, char* argv[])
         * Initialize pipe (or process handle on Windows) that allows children to
         * wake up from sleep on postmaster death.
         */
-    InitPostmasterDeathWatchHandle();
+    InitPostmasterDeathWatchHandle(); // 初始化宕机监听
 
 #ifdef WIN32
 
@@ -2213,7 +2215,7 @@ int PostmasterMain(int argc, char* argv[])
     /*init Role id hash table*/
     InitRoleIdHashTable();
     /* init unique sql */
-    InitUniqueSQL();
+    InitUniqueSQL(); // 初始化unique sql资源
     InitGsStack();
     /* init hypo index */
     InitHypopg();
@@ -2326,7 +2328,7 @@ int PostmasterMain(int argc, char* argv[])
     /*
      * Initialize the autovacuum subsystem (again, no process start yet)
      */
-    autovac_init();
+    autovac_init(); // 初始化垃圾清理线程子系统
 
     load_ident();
 
@@ -2460,7 +2462,7 @@ int PostmasterMain(int argc, char* argv[])
         fencedMasterPID = StartUDFMaster();
     }
     if (status == STATUS_OK)
-        status = ServerLoop();
+        status = ServerLoop(); // 在周期循环中，进行客户端请求监听
 
     /*
      * ServerLoop probably shouldn't ever return, but if it does, close down.
@@ -2940,8 +2942,10 @@ static int ServerLoop(void)
     last_start_loop_time = last_touch_time = last_start_poll_time = mc_timers_us();
 
 #ifdef HAVE_POLL
+    /*use poll*/
     nSockets = initPollfd(ufds);
 #else
+    /*use select()*/
     nSockets = initMasks(&readmask);
 #endif
 
@@ -2953,8 +2957,10 @@ static int ServerLoop(void)
     ereport(LOG, (errmsg("start create thread!")));
 
     /* Init backend thread pool */
+    // 线程池功能由参数 enable_thread_pool 控制
     if (threadPoolActivated) {
         bool enableNumaDistribute = (g_instance.shmem_cxt.numaNodeNum > 1);
+        // 进行线程池的初始化，在初始化时，会判断 NUMA 节点的个数，进行 NUMA 结构处理
         g_threadPoolControler->Init(enableNumaDistribute);
     }
     ereport(LOG, (errmsg("create thread end!")));
@@ -2964,7 +2970,7 @@ static int ServerLoop(void)
         int selres;
 
         if (t_thrd.postmaster_cxt.HaShmData->current_mode != NORMAL_MODE || IS_SHARED_STORAGE_MODE) {
-            check_and_reset_ha_listen_port();
+            check_and_reset_ha_listen_port(); // RESET
 
 #ifdef HAVE_POLL
             nSockets = initPollfd(ufds);
@@ -2973,7 +2979,7 @@ static int ServerLoop(void)
 #endif
         }
 
-        if (g_instance.listen_cxt.reload_fds) {
+        if (g_instance.listen_cxt.reload_fds) { // RELOAD
 #ifdef HAVE_POLL
             nSockets = initPollfd(ufds);
 #else
@@ -3060,7 +3066,7 @@ static int ServerLoop(void)
 #else
             int ss_rc = memcpy_s((char*)&rmask, sizeof(fd_set), (char*)&readmask, sizeof(fd_set));
             securec_check(ss_rc, "\0", "\0");
-            selres = comm_select(nSockets, &rmask, NULL, NULL, &timeout);
+            selres = comm_select(nSockets, &rmask, NULL, NULL, &timeout); // 调用select()方法
             last_start_poll_time = mc_timers_us();
 #endif
         }
@@ -3106,9 +3112,9 @@ static int ServerLoop(void)
                     if (IS_FD_TO_RECV_GSSOCK(ufds[i].fd)) {
                         port = ConnCreateToRecvGssock(ufds, i, &nSockets);
                     } else {
-                        port = ConnCreate(ufds[i].fd, i);
+                        port = ConnCreate(ufds[i].fd, i); // 创建链接
                     }
-
+                    // port就是新创建的链接
                     if (port != NULL) {
                         int result = STATUS_OK;
                         bool isConnectHaPort =
@@ -3121,8 +3127,11 @@ static int ServerLoop(void)
                          * array for ufds in initPollfd.
                          */
                         if (threadPoolActivated && !isConnectHaPort) {
+                            // 在线程池模式下，把新的链接加入到一个线程池组里。
+                            // 监听到有客户端链接请求，判断启用了线程池功能，则会调用它进行会话分发
                             result = g_threadPoolControler->DispatchSession(port);
                         } else {
+                            // 在非线程池模式下，创建一个后台线程 worker 处理客户请求。
                             result = BackendStartup(port, isConnectHaPort);
                         }
 
@@ -3213,6 +3222,8 @@ static int ServerLoop(void)
             g_instance.pid_cxt.AlarmCheckerPID = startAlarmChecker();
 
         /* If we have lost the reaper backend thread, try to start a new one */
+        // initialize_util_thread 创建后台线程
+        //后台线程有FATEL级别错误退出，重新启动该线程
         if (g_instance.pid_cxt.ReaperBackendPID == 0)
             g_instance.pid_cxt.ReaperBackendPID = initialize_util_thread(REAPER);
 
@@ -3549,8 +3560,8 @@ static int ServerLoop(void)
             (void)streaming_backend_manager(STREAMING_BACKEND_INIT);
         }
 #endif   /* ENABLE_MULTIPLE_NODES */
-    }
-}
+    } // end of for(::)
+} // end of ServerLoop
 
 /*
  * Initialise the ufds for poll() for the ports we are listening on.
@@ -8005,7 +8016,7 @@ static int BackendStartup(Port* port, bool isConnectHaPort)
      * Unless it's a dead_end child, assign it a child slot number
      */
     bn->child_slot = t_thrd.proc_cxt.MyPMChildSlot = childSlot;
-
+    // 创建工作线程组
     pid = initialize_worker_thread(WORKER, port);
     t_thrd.proc_cxt.MyPMChildSlot = 0;
     if (pid == (ThreadId)-1) {
@@ -12374,6 +12385,17 @@ void InitProcessAndShareMemory()
     CreateSharedMemoryAndSemaphores(false, 0);
 }
 
+/**
+ * GaussDbAuxiliaryThreadMain
+ * 
+ * auxiliary: /ɔːɡˈzɪliəri/, /ɔːɡˈzɪliəri/, 
+ * adj, 辅助的；备用的，后备的
+ * n, 助手，辅助人员；外国援军士兵，雇佣兵；附属机构；志愿队；辅助舰船；助动词
+ * 
+ * 这是个后台辅助线程处理函数，该函数的处理方式与 GaussDbThreadMain 函数类似，
+ * 根据 thread_role 角色的不同调用不同的处理函数，进入各个线程的Main函数.
+ * 
+*/
 template <knl_thread_role thread_role>
 int GaussDbAuxiliaryThreadMain(knl_thread_arg* arg)
 {
@@ -12408,7 +12430,7 @@ int GaussDbAuxiliaryThreadMain(knl_thread_arg* arg)
     SetProcessingMode(BootstrapProcessing);
     u_sess->attr.attr_common.IgnoreSystemIndexes = true;
     BaseInit();
-    BindRedoThreadToSpecifiedCpu(thread_role);
+    BindRedoThreadToSpecifiedCpu(thread_role); // 把线程绑定在固定的核上
     /*
      * When we are an auxiliary process, we aren't going to do the full
      * InitPostgres pushups, but there are a couple of things that need to get
@@ -12619,7 +12641,10 @@ static void is_memory_backend_reserved(const knl_thread_arg* arg)
             break;
     }
 }
-
+/*
+首先初始化线程基本信息， context 和信号处理函数，然后根据 thread_role 角色调用不同的角色处理函数，
+进入各个线程的 MAIN 函数。
+*/
 template <knl_thread_role thread_role>
 int GaussDbThreadMain(knl_thread_arg* arg)
 {
@@ -12636,7 +12661,8 @@ int GaussDbThreadMain(knl_thread_arg* arg)
     gs_memprot_thread_init();
     MemoryContextInit();
     knl_thread_init(thread_role);
-
+    
+    //TODO: 为什么要进行 MemoryContextSwitchTo ?
     MemoryContextSwitchTo(THREAD_GET_MEM_CXT_GROUP(MEMORY_CONTEXT_DEFAULT));
     t_thrd.fake_session = create_session_context(t_thrd.top_mem_cxt, 0);
     t_thrd.fake_session->status = KNL_SESS_FAKE;
@@ -12831,7 +12857,7 @@ int GaussDbThreadMain(knl_thread_arg* arg)
             InitAuxiliaryProcess();
             /* Attach process to shared data structures */
             CreateSharedMemoryAndSemaphores(false, 0);
-            GaussDbAuxiliaryThreadMain<thread_role>(arg);
+            GaussDbAuxiliaryThreadMain<thread_role>(arg); //进入 Auxiliary 线程处理函数
             proc_exit(0);
         } break;
 
@@ -12841,7 +12867,7 @@ int GaussDbThreadMain(knl_thread_arg* arg)
                 return STATUS_ERROR;
             }
             InitProcessAndShareMemory();
-            LogicalReadWorkerMain(arg->payload);
+            LogicalReadWorkerMain(arg->payload); // 进入 Read Woker Main 线程处理函数
             proc_exit(0);
         } break;
         case PARALLEL_DECODE: {
@@ -13418,7 +13444,7 @@ static void* InternalThreadFunc(void* args)
 
 ThreadId initialize_thread(ThreadArg* thr_argv)
 {
-
+    // 调用了 InternalThreadFunc 处理线程
     gs_thread_t thread;
     int error_code = gs_thread_create(&thread, InternalThreadFunc, 1, (void*)thr_argv);
     if (error_code != 0) {

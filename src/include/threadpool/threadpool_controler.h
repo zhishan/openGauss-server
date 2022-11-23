@@ -33,7 +33,7 @@
 
 class ThreadPoolSessControl;
 
-enum CPUBindType { NO_CPU_BIND, ALL_CPU_BIND, NODE_BIND, CPU_BIND, NUMA_BIND };
+enum CPUBindType { NO_CPU_BIND, ALL_CPU_BIND, NODE_BIND, CPU_BIND, NUMA_BIND }; // 这几个类别有什么不同吗？
 
 typedef struct {
     int numaId;
@@ -145,9 +145,9 @@ private:
 
 private:
     MemoryContext m_threadPoolContext;
-    ThreadPoolGroup** m_groups;
-    ThreadPoolScheduler* m_scheduler;
-    CPUInfo m_cpuInfo;
+    ThreadPoolGroup** m_groups; // 指向线程池分组数组
+    ThreadPoolScheduler* m_scheduler; // 调度器
+    CPUInfo m_cpuInfo; // cpu信息,包括NUMA
     ThreadPoolAttr m_attr;
     ThreadPoolStreamAttr m_stream_attr;
     cpu_set_t m_cpuset;

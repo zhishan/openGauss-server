@@ -74,8 +74,10 @@ static void ListenerSIGKILLHandler(SIGNAL_ARGS)
 
 void TpoolListenerMain(ThreadPoolListener* listener)
 {
+    // 设置线程的名字
     t_thrd.proc_cxt.MyProgName = "ThreadPoolListener";
     pgstat_report_appname("ThreadPoolListener");
+    // 设置信号处理函数
     (void)gspqsignal(SIGURG, print_stack);
     (void)gspqsignal(SIGHUP, SIG_IGN);
     (void)gspqsignal(SIGINT, SIG_IGN);
@@ -93,10 +95,12 @@ void TpoolListenerMain(ThreadPoolListener* listener)
     gs_signal_setmask(&t_thrd.libpq_cxt.UnBlockSig, NULL);
     (void)gs_signal_unblock_sigusr2();
 
+    // 创建 epoll 等待事件
     listener->CreateEpoll();
+    // 通知 Postmaster 线程已经准备好了
     listener->NotifyReady();
 
-    TpoolListenerLoop(listener);
+    TpoolListenerLoop(listener); // 调用 WaitTask 函数
     proc_exit(0);
 }
 
@@ -170,6 +174,7 @@ ThreadPoolListener::~ThreadPoolListener()
 
 int ThreadPoolListener::StartUp()
 {
+    // 创建 listener线程，主函数是 TpoolListenerMain
     m_tid = initialize_util_thread(THREADPOOL_LISTENER, (void*)this);
     return ((m_tid == 0) ? STATUS_ERROR : STATUS_OK);
 }
@@ -379,6 +384,7 @@ void ThreadPoolListener::WaitTask()
             nevents = comm_epoll_wait(m_epollFd, m_epollEvents, GLOBAL_MAX_SESSION_NUM, -1); /* CommProxy Support */
         }
         if (nevents > 0 && nevents <= GLOBAL_MAX_SESSION_NUM) {
+            // 有事件到来时，找到事件对应的会话。
             HandleConnEvent(nevents);
             continue;
         } else if (nevents > GLOBAL_MAX_SESSION_NUM) {
@@ -404,7 +410,8 @@ void ThreadPoolListener::HandleConnEvent(int nevets)
         if (session == NULL) {
             continue;
         }
-
+        // 如果有空闲的 worker 线程，通知worker线程进行处理
+        // 如果没有空闲的，则把会话挂载到等待队列中
         DispatchSession(session);
     }
 }
@@ -454,6 +461,7 @@ void ThreadPoolListener::DispatchSession(knl_session_context* session)
             ereport(DEBUG2,
                     (errmodule(MOD_THREAD_POOL),
                      errmsg("%s remove session:%lu from idleSessionList to worker", __func__, session->session_id)));
+            // 唤醒工作
             if (((ThreadPoolWorker*)DLE_VAL(sc))->WakeUpToWork(session)) {
                 pg_atomic_fetch_add_u32((volatile uint32*)&m_group->m_processTaskCount, 1);
                 break;
@@ -464,7 +472,8 @@ void ThreadPoolListener::DispatchSession(knl_session_context* session)
                         errmsg("%s remove session:%lu from idleSessionList to readySessionList",
                                __func__, session->session_id)));
             INSTR_TIME_SET_CURRENT(session->last_access_time);
-
+            
+            // 没有空闲的worker线程，则把会话挂到等待队列中
             /* Add new session to the head so the connection request can be quickly processed. */
             if (session->status == KNL_SESS_UNINIT) {
                 AddIdleSessionToHead(session);

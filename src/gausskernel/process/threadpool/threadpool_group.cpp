@@ -143,20 +143,22 @@ void ThreadPoolGroup::InitWorkerSentry()
 
     /* Init lock for each slot. */
     for (int i = 0; i < m_maxWorkerNum; i++) {
+        // 创建互斥量 和 条件变量
         pthread_mutex_init(&m_workers[i].mutex, NULL);
         pthread_cond_init(&m_workers[i].cond, NULL);
     }
 
     /* Start up workers. */
     for (int i = 0; i < m_expectWorkerNum; i++) {
-        AddWorker(i);
+        // 创建worker对象，启动worker线程
+        AddWorker(i); 
     }
 }
 
 void ThreadPoolGroup::AddWorker(int i)
-{
+{   // 创建工作线程
     m_workers[i].worker = New(m_context) ThreadPoolWorker(i, this, &m_workers[i].mutex, &m_workers[i].cond);
-
+    // 启动工作线程
     int ret = m_workers[i].worker->StartUp();
     if (ret == STATUS_OK) {
         m_workers[i].stat.slotStatus = THREAD_SLOT_INUSE;

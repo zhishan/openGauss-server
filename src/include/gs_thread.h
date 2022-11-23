@@ -52,7 +52,7 @@ typedef struct gs_thread_t {
     ThreadId thid;
 } gs_thread_t;
 #endif
-
+/*定义线程角色*/
 typedef enum knl_thread_role {
     MASTER_THREAD = 0,
     WORKER = 1,

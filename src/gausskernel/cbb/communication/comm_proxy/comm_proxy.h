@@ -442,6 +442,7 @@ typedef struct CommPollInternalInvokeParam {
  * driven by comm's epoll, currently we have tree socket api need polling from comm-proxy thread
  * - 1. poll()
  * - 2. epoll_wait()
+ * 这个是怎么用的？
  */
 typedef struct CommWaitPollParam {
     SocketRequestType s_wait_type;

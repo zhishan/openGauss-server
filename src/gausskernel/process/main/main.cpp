@@ -76,7 +76,7 @@ extern int encrypte_main(int argc, char* const argv[]);
 /*
  * Any openGauss server process begins execution here.
  */
-int main(int argc, char* argv[])
+int main(int argc, char* argv[]) // process main function
 {
     char* mmap_env = NULL;
 

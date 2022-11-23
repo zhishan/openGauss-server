@@ -126,6 +126,7 @@ ThreadPoolScheduler::~ThreadPoolScheduler()
 
 int ThreadPoolScheduler::StartUp()
 {
+    // 创建线程, 创建完就启动了
     m_tid = initialize_util_thread(THREADPOOL_SCHEDULER, (void*)this);
     return ((m_tid == 0) ? STATUS_ERROR : STATUS_OK);
 }

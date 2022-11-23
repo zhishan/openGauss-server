@@ -209,6 +209,8 @@ extern void pgport_pfree(void* pointer);
 // All other class should inherit from BaseObject class which
 // override operator new/delete.
 //
+// 这样就可以测量计算内存分配的问题了吗？
+// 
 class BaseObject {
 public:
     ~BaseObject()

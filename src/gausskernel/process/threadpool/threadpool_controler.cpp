@@ -95,6 +95,13 @@ ThreadPoolControler::~ThreadPoolControler()
     m_sessCtrl = NULL;
 }
 
+/*
+* 对线程池进行初始化, 初始化时，会判断NUMA节点的个数，进行 NUMA 结构处理
+* 初始化 
+* m_sessCtrl
+* m_groups
+* m_scheduler
+*/
 void ThreadPoolControler::Init(bool enableNumaDistribute)
 {
 
@@ -106,7 +113,7 @@ void ThreadPoolControler::Init(bool enableNumaDistribute)
         SHARED_CONTEXT);
 
     AutoContextSwitch memSwitch(m_threadPoolContext);
-
+    // 初始化 m_sessCtrl 和 m_groups 成员对象, 为什么使用两种方法: New 和 palloc,
     m_groups = (ThreadPoolGroup**)palloc(sizeof(ThreadPoolGroup*) * m_groupNum);
     m_sessCtrl = New(CurrentMemoryContext) ThreadPoolSessControl(CurrentMemoryContext);
 
@@ -120,6 +127,7 @@ void ThreadPoolControler::Init(bool enableNumaDistribute)
     int cpuNum = 0;
     int *cpuArr = NULL;
 
+    // 绑定 NUMA 
     for (int i = 0; i < m_groupNum; i++) {
         if (bindCpu) {
             while (m_cpuInfo.cpuArrSize[numaId] == 0)
@@ -128,6 +136,7 @@ void ThreadPoolControler::Init(bool enableNumaDistribute)
             /*
              * Invoke numa_set_preferred before starting worker thread to make
              * more memory allocation local to worker thread.
+             * 在NUMA架构下，充分利用 CPU 的 local cache.
              */
 #ifdef __USE_NUMA
             if (enableNumaDistribute) {
@@ -157,22 +166,25 @@ void ThreadPoolControler::Init(bool enableNumaDistribute)
 
         m_groups[i] = New(CurrentMemoryContext)ThreadPoolGroup(maxThreadNum, expectThreadNum,
                                                     maxStreamNum, i, tmpNumaId, cpuNum, cpuArr, bindCpuNuma);
+        // ThreadPoolGroup::Init 函数，创建 m_listener, 启动listener线程
         m_groups[i]->Init(enableNumaDistribute);
     }
 
     for (int i = 0; i < m_groupNum; i++) {
+        // 等待各个线程初始化结束
         m_groups[i]->WaitReady();
     }
 
 #ifdef __USE_NUMA
     if (enableNumaDistribute) {
         /* Set to interleave mode for other than worker thread */
+        // 啥意思？
         numa_set_interleave_mask(numa_all_nodes_ptr);
     }
 #endif
 
     m_scheduler = New(CurrentMemoryContext) ThreadPoolScheduler(m_groupNum, m_groups);
-    m_scheduler->StartUp();
+    m_scheduler->StartUp(); // 启动线程
 }
 
 void ThreadPoolControler::SetThreadPoolInfo()
@@ -188,7 +200,7 @@ void ThreadPoolControler::SetThreadPoolInfo()
     ParseStreamAttr();
 
     GetSysCpuInfo();
-
+    // 设置 m_groupNum 线程组），m_threadNum 每组线程的个数， m_maxPoolSize
     SetGroupAndThreadNum();
 
     SetStreamInfo();
@@ -688,7 +700,7 @@ void ThreadPoolControler::SetGroupAndThreadNum()
     } else {
         m_threadNum = m_attr.threadNum;
     }
-
+    // 设置 m_maxPoolSize
     ConstrainThreadNum();
 }
 
@@ -831,6 +843,7 @@ void ThreadPoolControler::AddWorkerIfNecessary()
     EnableAdjustPool();
 }
 
+// 找到一个会话数量最小的线程组，创建会话，把会话添加到线程组的监听线程中
 ThreadPoolGroup* ThreadPoolControler::FindThreadGroupWithLeastSession()
 {
     int idx = 0;
@@ -840,6 +853,7 @@ ThreadPoolGroup* ThreadPoolControler::FindThreadGroupWithLeastSession()
     least_session = m_groups[0]->GetSessionPerThread();
     for (int i = 1; i < m_groupNum; i++) {
         session_per_thread = m_groups[i]->GetSessionPerThread();
+        // grounps中的会话数量
         if (session_per_thread < least_session) {
             least_session = session_per_thread;
             idx = i;
@@ -888,11 +902,11 @@ int ThreadPoolControler::DispatchSession(Port* port)
                     errmsg("Group[%d] is too busy to add new session for now.", grp->GetGroupId())));
         return STATUS_ERROR;
     }
-
+    // 创建新的会话
     sc = m_sessCtrl->CreateSession(port);
     if (sc == NULL)
         return STATUS_ERROR;
-
+    // 添加到listener中
     grp->GetListener()->AddNewSession(sc);
     return STATUS_OK;
 }
@@ -916,7 +930,7 @@ void ThreadPoolControler::BindThreadToAllAvailCpu(ThreadId thread) const
     for (int numaNo = 0; numaNo < m_cpuInfo.totalNumaNum; ++numaNo) {
         int cpuNumber = m_cpuInfo.cpuArrSize[numaNo];
         for (int i = 0; i < cpuNumber; ++i) {
-            CPU_SET(m_cpuInfo.cpuArr[numaNo][i], &availCpuSet);
+            CPU_SET(m_cpuInfo.cpuArr[numaNo][i], &availCpuSet); // 这是啥意思？
         }
     }
     int ret = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &availCpuSet);

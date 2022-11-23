@@ -7967,6 +7967,7 @@ int PostgresMain(int argc, char* argv[], const char* dbname, const char* usernam
     Assert(check_module_name_unique());
 
     if (IS_THREAD_POOL_WORKER) {
+        // worker线程的用处1： 线程池模式下，处理 worker线程准备就绪的通知
         u_sess->proc_cxt.MyProcPort->sock = PGINVALID_SOCKET;
         t_thrd.threadpool_cxt.worker->NotifyReady();
     }
@@ -8469,6 +8470,10 @@ int PostgresMain(int argc, char* argv[], const char* dbname, const char* usernam
         pq_disk_disable_temp_file();
 
         if (IS_THREAD_POOL_WORKER) {
+            // worker线程的用处2： 等待会话通知
+            // WaitMission主要作用是阻塞所有系统信号，避免系统信号如SIGHUP等中断当前的处理
+            // 清除线程上的会话信息，保证没有上一个会话的内容，等待会话上的新的请求
+            // 把会话给线程进行处理，允许系统信号中断
             t_thrd.threadpool_cxt.worker->WaitMission();
             Assert(CheckMyDatabaseMatch());
             if (!g_instance.archive_obs_cxt.in_switchover && !g_instance.streaming_dr_cxt.isInSwitchover) {
@@ -8648,7 +8653,7 @@ int PostgresMain(int argc, char* argv[], const char* dbname, const char* usernam
                 u_sess->proc_cxt.MyProcPort->gs_sock.sid,
                 firstchar);
 
-        switch (firstchar) {
+        switch (firstchar) { //TODO: what's the mean of the firstchar?
 #ifdef ENABLE_MULTIPLE_NODES
             case 'Z':  // exeute plan directly.
             {
@@ -9581,7 +9586,9 @@ int PostgresMain(int argc, char* argv[], const char* dbname, const char* usernam
                 InitThreadLocalWhenSessionExit();
 
                 if (IS_THREAD_POOL_WORKER) {
+                    // worker线程的用处3: 链接退出处理
                     (void)gs_signal_block_sigusr2();
+                    // 主要作用是清除会话，从Listener中去除会话，释放会话资源。
                     t_thrd.threadpool_cxt.worker->CleanUpSession(false);
                     (void)gs_signal_unblock_sigusr2();
                     break;

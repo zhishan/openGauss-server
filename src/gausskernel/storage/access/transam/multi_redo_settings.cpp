@@ -227,7 +227,7 @@ bool CheckRedoBindConfigValid(RedoCpuBindControl *contrl)
         return false;
     }
 #ifdef __USE_NUMA
-    int numaNodeNum = numa_max_node() + 1;
+    int numaNodeNum = numa_max_node() + 1; // 可以通过api来获得个数
     if (numaNodeNum <= 1) {
         ereport(WARNING, (errmsg("CheckRedoBindConfigValid No multiple NUMA nodes available: %d.", numaNodeNum)));
         return false;
@@ -244,7 +244,8 @@ bool CheckRedoBindConfigValid(RedoCpuBindControl *contrl)
 void ProcessRedoCpuBindInfo()
 {
     RedoCpuBindControl *contrl = &g_instance.comm_cxt.predo_cxt.redoCpuBindcontrl;
-    ThreadPoolControler::GetInstanceBind(&contrl->cpuSet);
+    ThreadPoolControler::GetInstanceBind(&contrl->cpuSet); // 把不同的线程组绑定到不同的核上
+    // NUMA(Non-Uniform Memory Access, 非一致性内存访问)，天然匹配NUMA化的CPU架构，从而提升整体的性能
     ThreadPoolControler::GetCpuAndNumaNum(&contrl->totalCpuNum, &contrl->totalNumaNum);
     ParseBindCpuInfo(contrl);
     if (CheckRedoBindConfigValid(contrl)) {
